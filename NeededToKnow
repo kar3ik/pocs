@@ -252,3 +252,69 @@ usage :
 $MessageBoxA = LookupFunc -moduleName "user32.dll" -functionName "MessageBoxA"
 Write-Output "MessageBoxA function pointer: $MessageBoxA"
 
+
+
+
+
+Deligate Type reflection
+------------------------
+
+
+
+function LookupFunc {
+    param ($moduleName, $functionName)
+
+    # Retrieve the System.dll assembly from loaded assemblies
+    $systemDll = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {
+        $_.GlobalAssemblyCache -and $_.Location.Split('\\')[-1] -eq 'System.dll'
+    }
+
+    # Get the type for Microsoft.Win32.UnsafeNativeMethods
+    $unsafeType = $systemDll.GetType('Microsoft.Win32.UnsafeNativeMethods')
+
+    # Get the method info for GetProcAddress
+    $getProcAddress = $unsafeType.GetMethod('GetProcAddress')
+
+    # Get the method info for GetModuleHandle and invoke it
+    $moduleHandle = $unsafeType.GetMethod('GetModuleHandle').Invoke($null, @($moduleName))
+
+    # Invoke GetProcAddress to get the function pointer
+    return $getProcAddress.Invoke($null, @($moduleHandle, $functionName))
+}
+
+# Usage: Retrieve the function pointer for MessageBoxA from user32.dll
+$MessageBoxA = LookupFunc 'user32.dll' 'MessageBoxA'
+
+# Create a new dynamic assembly
+$MyAssembly = New-Object System.Reflection.AssemblyName('ReflectedDelegate')
+$Domain = [AppDomain]::CurrentDomain
+$MyAssemblyBuilder = $Domain.DefineDynamicAssembly($MyAssembly, [System.Reflection.Emit.AssemblyBuilderAccess]::Run)
+$MyModuleBuilder = $MyAssemblyBuilder.DefineDynamicModule('InMemoryModule', $false)
+$MyTypeBuilder = $MyModuleBuilder.DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', [System.MulticastDelegate])
+
+# Define the constructor for the delegate type
+$MyConstructorBuilder = $MyTypeBuilder.DefineConstructor(
+    'RTSpecialName, HideBySig, Public',
+    [System.Reflection.CallingConventions]::Standard,
+    @([IntPtr], [String], [String], [int])
+)
+$MyConstructorBuilder.SetImplementationFlags('Runtime, Managed')
+
+# Define the Invoke method for the delegate type
+$MyMethodBuilder = $MyTypeBuilder.DefineMethod(
+    'Invoke',
+    'Public, HideBySig, NewSlot, Virtual',
+    [int],
+    @([IntPtr], [String], [String], [int])
+)
+$MyMethodBuilder.SetImplementationFlags('Runtime, Managed')
+
+# Create the type
+$MyDelegateType = $MyTypeBuilder.CreateType()
+
+# Convert the function pointer to a delegate
+$MyFunction = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer($MessageBoxA, $MyDelegateType)
+
+# Invoke the delegate
+$MyFunction.Invoke([IntPtr]::Zero, "Hello world", "This is my MessageBox", 0)
+
