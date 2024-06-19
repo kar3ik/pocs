@@ -259,8 +259,6 @@ Write-Output "MessageBoxA function pointer: $MessageBoxA"
 Deligate Type reflection
 ------------------------
 
-
-
 function LookupFunc {
     param ($moduleName, $functionName)
 
@@ -272,11 +270,11 @@ function LookupFunc {
     # Get the type for Microsoft.Win32.UnsafeNativeMethods
     $unsafeType = $systemDll.GetType('Microsoft.Win32.UnsafeNativeMethods')
 
-    # Get the method info for GetProcAddress
-    $getProcAddress = $unsafeType.GetMethod('GetProcAddress')
+    # Get the method info for GetProcAddress with specific parameters
+    $getProcAddress = $unsafeType.GetMethod('GetProcAddress', [Type[]]@([IntPtr], [String]))
 
     # Get the method info for GetModuleHandle and invoke it
-    $moduleHandle = $unsafeType.GetMethod('GetModuleHandle').Invoke($null, @($moduleName))
+    $moduleHandle = $unsafeType.GetMethod('GetModuleHandle', [Type[]]@([String])).Invoke($null, @($moduleName))
 
     # Invoke GetProcAddress to get the function pointer
     return $getProcAddress.Invoke($null, @($moduleHandle, $functionName))
@@ -317,4 +315,3 @@ $MyFunction = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPo
 
 # Invoke the delegate
 $MyFunction.Invoke([IntPtr]::Zero, "Hello world", "This is my MessageBox", 0)
-
