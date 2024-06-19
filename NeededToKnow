@@ -21,17 +21,16 @@ how to get assembies in specifc process (ex - powershell process)
 
 
 
-$Assemblies = [ApDomain]::CurrentDomain.GetAssemblies()
+$Assemblies = [AppDomain]::CurrentDomain.GetAssemblies()
 
-$Assemblies |
-	ForEach-Objecy {
-		$_.GetTypes() |
-			ForEach-Object {
-				$_. | Get-Member -Static | Where-Object {
-				  $_.TypeName.Contains('Unsafe')
-			}
-		} 2 > null
-   }
+$Assemblies | ForEach-Object {
+    $_.GetTypes() | ForEach-Object {
+        $_ | Get-Member -Static | Where-Object {
+            $_.TypeName.Contains('Unsafe')
+        }
+    } 2> $null
+}
+
 
 whn c# code wants to directly invoke win32 api it must provides the unsafe keyword
 if any functions are to be used they must be declared as static to avoid instantion 
