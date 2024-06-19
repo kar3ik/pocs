@@ -298,7 +298,7 @@ $MyConstructorBuilder = $MyTypeBuilder.DefineConstructor(
     [System.Reflection.CallingConventions]::Standard,
     @([IntPtr], [String], [String], [int])
 )
-$MyConstructorBuilder.SetImplementationFlags('Runtime, Managed')
+$MyConstructorBuilder.SetImplementationFlags([System.Reflection.MethodImplAttributes]::Runtime)
 
 # Define the Invoke method for the delegate type
 $MyMethodBuilder = $MyTypeBuilder.DefineMethod(
@@ -307,7 +307,7 @@ $MyMethodBuilder = $MyTypeBuilder.DefineMethod(
     [int],
     @([IntPtr], [String], [String], [int])
 )
-$MyMethodBuilder.SetImplementationFlags('Runtime, Managed')
+$MyMethodBuilder.SetImplementationFlags([System.Reflection.MethodImplAttributes]::Runtime)
 
 # Create the type
 $MyDelegateType = $MyTypeBuilder.CreateType()
