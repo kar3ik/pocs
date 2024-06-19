@@ -194,3 +194,57 @@ function LookupFunc{
 }
 
 $MessageBoxA = LookupFunc user32.dll MessageBoxA
+
+
+(or)
+
+
+function LookupFunc {
+    param (
+        [string] $moduleName,
+        [string] $functionName
+    )
+
+    # Retrieve the System.dll assembly from loaded assemblies
+    $systemDll = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {
+        $_.GlobalAssemblyCache -and $_.Location.Split('\\')[-1].Equals('System.dll')
+    }
+
+    if ($systemDll) {
+        # Get the type for Microsoft.Win32.UnsafeNativeMethods
+        $unsafeType = $systemDll.GetType('Microsoft.Win32.UnsafeNativeMethods')
+
+        if ($unsafeType) {
+            # Get the method info for GetModuleHandle
+            $getModuleHandle = $unsafeType.GetMethod('GetModuleHandle')
+
+            if ($getModuleHandle) {
+                # Invoke GetModuleHandle to get module handle
+                $moduleHandle = $getModuleHandle.Invoke($null, @($moduleName))
+
+                # Get the method info for GetProcAddress
+                $tmp = @()
+                $unsafeType.GetMethods() | ForEach-Object {
+                    if ($_.Name -eq "GetProcAddress") {
+                        $tmp += $_
+                    }
+                }
+                $getProcAddress = $tmp[0]
+
+                if ($getProcAddress) {
+                    # Invoke GetProcAddress to get function pointer
+                    return $getProcAddress.Invoke($null, @($moduleHandle, $functionName))
+                } else {
+                    Write-Error "Method 'GetProcAddress' not found in type 'Microsoft.Win32.UnsafeNativeMethods'"
+                }
+            } else {
+                Write-Error "Method 'GetModuleHandle' not found in type 'Microsoft.Win32.UnsafeNativeMethods'"
+            }
+        } else {
+            Write-Error "Type 'Microsoft.Win32.UnsafeNativeMethods' not found in System.dll"
+        }
+    } else {
+        Write-Error "System.dll not found in loaded assemblies"
+    }
+}
+
