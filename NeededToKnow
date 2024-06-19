@@ -123,6 +123,57 @@ $GetProcAddress = $tmp[0]
 $GetProcAddress.Invoke($null, @($user32, "MessageBoxA"))
 
 
+(or)
+
+# Retrieve the System.dll assembly from loaded assemblies
+$systemDll = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {
+    $_.GlobalAssemblyCache -and $_.Location.Split('\\')[-1].Equals('System.dll')
+}
+
+# Check if System.dll was found
+if ($systemDll) {
+    # Get the type for Microsoft.Win32.UnsafeNativeMethods
+    $unsafeType = $systemDll.GetType('Microsoft.Win32.UnsafeNativeMethods')
+
+    # Check if the type was found
+    if ($unsafeType) {
+        # Get the method info for GetModuleHandle
+        $getModuleHandle = $unsafeType.GetMethod('GetModuleHandle')
+
+        # Check if the method was found
+        if ($getModuleHandle) {
+            # Invoke the GetModuleHandle method
+            $user32 = $getModuleHandle.Invoke($null, @("user32.dll"))
+
+            # Get the method info for GetProcAddress
+            $tmp = @()
+            $unsafeType.GetMethods() | ForEach-Object {
+                if ($_.Name -eq "GetProcAddress") {
+                    $tmp += $_
+                }
+            }
+            $getProcAddress = $tmp[0]
+
+            # Check if GetProcAddress method was found
+            if ($getProcAddress) {
+                # Invoke GetProcAddress method
+                $result = $getProcAddress.Invoke($null, @($user32, "MessageBoxA"))
+                Write-Output "Result: $result"
+            } else {
+                Write-Error "Method 'GetProcAddress' not found in type 'Microsoft.Win32.UnsafeNativeMethods'"
+            }
+        } else {
+            Write-Error "Method 'GetModuleHandle' not found in type 'Microsoft.Win32.UnsafeNativeMethods'"
+        }
+    } else {
+        Write-Error "Type 'Microsoft.Win32.UnsafeNativeMethods' not found in System.dll"
+    }
+} else {
+    Write-Error "System.dll not found in loaded assemblies"
+}
+
+
+
 
 
 
