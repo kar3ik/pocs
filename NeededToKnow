@@ -66,6 +66,40 @@ $GetModuleHandle.Invoke($null, @("user32.dll"))
 
 
 
+(or)
+
+
+# Retrieve the System.dll assembly from loaded assemblies
+$systemDll = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {
+    $_.GlobalAssemblyCache -and $_.Location.Split('\\')[-1].Equals('System.dll')
+}
+
+# Check if System.dll was found
+if ($systemDll) {
+    # Get the type for Microsoft.Win32.UnsafeNativeMethods
+    $unsafeType = $systemDll.GetType('Microsoft.Win32.UnsafeNativeMethods')
+
+    # Check if the type was found
+    if ($unsafeType) {
+        # Get the method info for GetModuleHandle
+        $getModuleHandle = $unsafeType.GetMethod('GetModuleHandle')
+
+        # Check if the method was found
+        if ($getModuleHandle) {
+            # Invoke the GetModuleHandle method
+            $result = $getModuleHandle.Invoke($null, @("user32.dll"))
+            Write-Output "Result: $result"
+        } else {
+            Write-Error "Method 'GetModuleHandle' not found in type 'Microsoft.Win32.UnsafeNativeMethods'"
+        }
+    } else {
+        Write-Error "Type 'Microsoft.Win32.UnsafeNativeMethods' not found in System.dll"
+    }
+} else {
+    Write-Error "System.dll not found in loaded assemblies"
+}
+
+
 
 
 
